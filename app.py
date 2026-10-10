@@ -10,7 +10,7 @@ import tempfile
 import os
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="Cr(VI) LabAnalyzer", layout="wide")
+st.set_page_config(page_title="Cr(VI)", layout="wide")
 
 # Custom CSS
 st.markdown("""
