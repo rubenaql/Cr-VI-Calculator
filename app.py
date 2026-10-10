@@ -114,10 +114,10 @@ with st.sidebar:
     st.markdown("- **Linearitas:** r &ge; 0.995\n- **Presisi (RPD):** &le; 10%\n- **Akurasi (% Rec):** 85% - 115%")
     st.divider()
     
-    st.caption("Dikembangkan dengan Streamlit & Plotly")
+    st.caption("Created by Kelompok 2")
 
 # HEADER UTAMA
-st.markdown('<p class="main-title">Laboratorium Analitik Cr(VI)</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-title">Otomasi Pengolahan Data Parameter Cr(VI)</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">Automasi Perhitungan Kalibrasi, Presisi, dan Akurasi</p>', unsafe_allow_html=True)
 
 # Tabs
