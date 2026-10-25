@@ -11,7 +11,7 @@ import tempfile
 import os
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="Cr(VI) LabAnalyzer", layout="wide")
+st.set_page_config(page_title="Cr(VI) Kelompok 2", layout="wide")
 
 # Custom CSS
 st.markdown("""
@@ -115,10 +115,10 @@ with st.sidebar:
     st.markdown("- **Linearitas:** r &ge; 0.995\n- **Presisi (RPD):** &le; 10%\n- **Akurasi (% Rec):** 85% - 115%")
     st.divider()
     
-    st.caption("Dikembangkan dengan Streamlit & Plotly")
+    st.caption("Kelompok 2 Praktikum Spektrofotometri")
 
 # HEADER UTAMA
-st.markdown('<p class="main-title">Laboratorium Analitik Cr(VI)</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-title">Parameter Cr(VI) (Krom Heksavalen)</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">Automasi Perhitungan Kalibrasi, Presisi, dan Akurasi</p>', unsafe_allow_html=True)
 
 # Tabs
