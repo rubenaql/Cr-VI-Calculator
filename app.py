@@ -227,7 +227,7 @@ with tab1:
 
 # TAB 2: PRESISI
 with tab2:
-    st.markdown("### 🧪 Uji Presisi (Keterulangan Hasil Analisis)")
+    st.markdown("### Uji Presisi (Keterulangan Hasil Analisis)")
     # Radio Pilihan Metode
     mode_presisi = st.radio(
         "Pilih Metode Evaluasi Presisi:",
@@ -570,7 +570,7 @@ with tab4:
 
 # TAB 5: SIMULATOR 3D UV-VIS
 with tab5:
-    st.markdown("###3D Spektrofotometer UV-Vis (Shimadzu UV-1700)")
+    st.markdown("### 3D Spektrofotometer UV-Vis (Shimadzu UV-1700)")
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     if os.path.exists(html_path):
         with open(html_path, "r", encoding="utf-8") as f:
