@@ -11,7 +11,7 @@ import tempfile
 import os
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="Cr(VI) LabAnalyzer", layout="wide")
+st.set_page_config(page_title="Cr(VI) Kelompok 2", layout="wide")
 
 # Custom CSS
 st.markdown("""
@@ -141,14 +141,14 @@ with st.sidebar:
     """)
     st.divider()
     
-    st.caption("Dikembangkan dengan Streamlit & Plotly")
+    st.caption("Kelompok 2 Praktikum Spektrofotometri")
 
 # HEADER UTAMA
-st.markdown('<p class="main-title">Laboratorium Analitik Cr(VI)</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-title">Smart Cr(VI) Parameter Analyzer</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">Automasi Perhitungan Kalibrasi, Presisi, dan Akurasi</p>', unsafe_allow_html=True)
 
 # Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Kurva Kalibrasi", "Uji Presisi", "Uji Akurasi", "Cetak Laporan PDF", "🔬 Simulator 3D UV-Vis"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Kurva Kalibrasi", "Uji Presisi", "Uji Akurasi", "Cetak Laporan PDF", "3D Spektrofotometer UV-Vis"])
 
 # Session State Init
 if 'slope' not in st.session_state: st.session_state.slope = 0.0
@@ -228,14 +228,12 @@ with tab1:
 # TAB 2: PRESISI
 with tab2:
     st.markdown("### 🧪 Uji Presisi (Keterulangan Hasil Analisis)")
-    st.markdown("Presisi mengukur derajat kesesuaian antar hasil uji individual dalam kondisi pengujian yang sama (*repeatability*). Anda dapat memilih evaluasi **Duplo (%RPD & %RSD)** untuk 2 sampel paralel atau deret **Replikasi (%RSD / %KV)** untuk pengukuran jamak.")
-    
     # Radio Pilihan Metode
     mode_presisi = st.radio(
         "Pilih Metode Evaluasi Presisi:",
         [
-            "🔬 Uji Duplo (n = 2) — Evaluasi %RPD & %RSD",
-            "📊 Uji Replikasi (n ≥ 3) — Evaluasi %RSD / %KV"
+            "Uji Duplo (n = 2) — Evaluasi %RPD & %RSD",
+            "Uji Replikasi (n ≥ 3) — Evaluasi %RSD / %KV"
         ],
         horizontal=True
     )
@@ -445,7 +443,7 @@ with tab2:
 
     # BAGIAN RUMUS LENGKAP & LANDASAN TEORI
     st.divider()
-    with st.expander("📚 Rumus Lengkap & Prinsip Perhitungan Presisi (%RPD dan %RSD)", expanded=True):
+    with st.expander("Rumus Lengkap & Prinsip Perhitungan Presisi (%RPD dan %RSD)", expanded=True):
         col_r1, col_r2 = st.columns(2, gap="medium")
         
         with col_r1:
@@ -572,12 +570,7 @@ with tab4:
 
 # TAB 5: SIMULATOR 3D UV-VIS
 with tab5:
-    st.markdown("### 🔬 Simulator 3D Spektrofotometer UV-Vis (Shimadzu UV-1700)")
-    st.markdown(r"""
-    Model visual interaktif komponen luar dan dalam spektrofotometer double-beam **Shimadzu UV-1700 PharmaSpec**.
-    Gunakan kontrol di panel kiri untuk membuka tutup sampel, mengaktifkan mode transparan (*x-ray*), membongkar pasang (*exploded view*), menampilkan lintasan cahaya, label komponen, serta mengatur panjang gelombang pengukuran $\lambda$.
-    """)
-    
+    st.markdown("###3D Spektrofotometer UV-Vis (Shimadzu UV-1700)")
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     if os.path.exists(html_path):
         with open(html_path, "r", encoding="utf-8") as f:
