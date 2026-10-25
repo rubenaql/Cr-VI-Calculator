@@ -122,7 +122,7 @@ st.markdown('<p class="main-title">Laboratorium Analitik Cr(VI)</p>', unsafe_all
 st.markdown('<p class="sub-title">Automasi Perhitungan Kalibrasi, Presisi, dan Akurasi</p>', unsafe_allow_html=True)
 
 # Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Kurva Kalibrasi", "Uji Presisi", "Uji Akurasi", "Cetak Laporan PDF", "🔬 Simulator 3D UV-Vis"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Kurva Kalibrasi", "Uji Presisi", "Uji Akurasi", "Cetak Laporan PDF", "3D Spektrofotometer UV-Vis"])
 
 # Session State Init
 if 'slope' not in st.session_state: st.session_state.slope = 0
