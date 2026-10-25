@@ -281,11 +281,7 @@ with tab4:
 
 # TAB 5: SIMULATOR 3D UV-VIS
 with tab5:
-    st.markdown("### 🔬 Simulator 3D Spektrofotometer UV-Vis (Shimadzu UV-1700)")
-    st.markdown(r"""
-    Model visual interaktif komponen luar dan dalam spektrofotometer double-beam **Shimadzu UV-1700 PharmaSpec**.
-    Gunakan kontrol di panel kiri untuk membuka tutup sampel, mengaktifkan mode transparan (*x-ray*), membongkar pasang (*exploded view*), menampilkan lintasan cahaya, label komponen, serta mengatur panjang gelombang pengukuran $\lambda$.
-    """)
+    st.markdown("### 3D Spektrofotometer UV-Vis (Shimadzu UV-1700)")
     
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     if os.path.exists(html_path):
