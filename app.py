@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -10,7 +11,7 @@ import tempfile
 import os
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="Cr(VI)", layout="wide")
+st.set_page_config(page_title="Cr(VI) LabAnalyzer", layout="wide")
 
 # Custom CSS
 st.markdown("""
@@ -114,14 +115,14 @@ with st.sidebar:
     st.markdown("- **Linearitas:** r &ge; 0.995\n- **Presisi (RPD):** &le; 10%\n- **Akurasi (% Rec):** 85% - 115%")
     st.divider()
     
-    st.caption("Created by Kelompok 2")
+    st.caption("Dikembangkan dengan Streamlit & Plotly")
 
 # HEADER UTAMA
-st.markdown('<p class="main-title">Otomasi Pengolahan Data Parameter Cr(VI)</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-title">Laboratorium Analitik Cr(VI)</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">Automasi Perhitungan Kalibrasi, Presisi, dan Akurasi</p>', unsafe_allow_html=True)
 
 # Tabs
-tab1, tab2, tab3, tab4 = st.tabs(["Kurva Kalibrasi", "Uji Presisi", "Uji Akurasi", "Cetak Laporan PDF"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Kurva Kalibrasi", "Uji Presisi", "Uji Akurasi", "Cetak Laporan PDF", "🔬 Simulator 3D UV-Vis"])
 
 # Session State Init
 if 'slope' not in st.session_state: st.session_state.slope = 0
@@ -277,3 +278,19 @@ with tab4:
                     )
                 except Exception as e:
                     st.markdown(f'<div class="status-box-error">Gagal membuat PDF: {e}</div>', unsafe_allow_html=True)
+
+# TAB 5: SIMULATOR 3D UV-VIS
+with tab5:
+    st.markdown("### 🔬 Simulator 3D Spektrofotometer UV-Vis (Shimadzu UV-1700)")
+    st.markdown(r"""
+    Model visual interaktif komponen luar dan dalam spektrofotometer double-beam **Shimadzu UV-1700 PharmaSpec**.
+    Gunakan kontrol di panel kiri untuk membuka tutup sampel, mengaktifkan mode transparan (*x-ray*), membongkar pasang (*exploded view*), menampilkan lintasan cahaya, label komponen, serta mengatur panjang gelombang pengukuran $\lambda$.
+    """)
+    
+    html_path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            html_code = f.read()
+        components.html(html_code, height=780, scrolling=True)
+    else:
+        st.error("File index.html simulator 3D tidak ditemukan di direktori proyek.")

@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Spektrofotometer UV-1700 Pharmaspec</title>
+<style>
+:root { --fg:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --soft:#e0f2fe; --acc:#0284c7; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.45 'Segoe UI', system-ui, sans-serif; }
+/* Tata letak diubah: Panel samping di kiri, kanvas 3D di kanan */
+.wrap { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; height: 100%; padding: 10px; }
+.stage { position: relative; border-radius: 12px; overflow: hidden; min-height: 400px; box-shadow: inset 0 0 10px rgba(0,0,0,0.05); }
+canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+canvas:active { cursor: grabbing; }
+.tools { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; }
+.views { position: absolute; right: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 4px; background: rgba(255,255,255,.9); padding: 5px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+button { font: inherit; border: 1px solid var(--line); background: #fff; color: var(--fg); border-radius: 6px; padding: 6px 10px; cursor: pointer; transition: all 0.2s; }
+button:hover { border-color: var(--acc); background: var(--soft); }
+.views button { border: 0; background: none; color: var(--muted); }
+.views button.on { background: #fff; color: var(--acc); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.side { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; }
+.tg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tg button { text-align: left; font-size: 12px; color: var(--muted); }
+.tg button[aria-pressed=true] { border-color: var(--acc); background: var(--soft); color: var(--acc); font-weight: 700; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+.card { background: #ffffff; border: 1px solid var(--line); border-radius: 10px; padding: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+h4 { margin: 0 0 8px; font-size: 14px; color: var(--fg); }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+input[type=range] { width: 100%; accent-color: var(--acc); margin-bottom: 5px; }
+.app-title { font-weight: 800; font-size: 16px; margin: 0 0 4px; color: var(--acc); letter-spacing: 0.5px; }
+@media (max-width: 768px) { .wrap { grid-template-columns: 1fr; } .stage { height: 400px; order: -1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="side">
+    <div class="card">
+      <div class="app-title">3D VIEW: UV-1700 PHARMASPEC</div>
+      <div class="hint" style="margin-bottom: 12px;">Model visual interaktif komponen luar dan dalam spektrofotometer double-beam.</div>
+      <h4>Kontrol Tampilan</h4>
+      <div class="tg">
+        <button data-t="lid" aria-pressed="false">Buka Tutup Sampel</button>
+        <button data-t="xray" aria-pressed="false">Mode Transparan</button>
+        <button data-t="expl" aria-pressed="false">Bongkar Pasang</button>
+        <button data-t="beam" aria-pressed="false">Lintasan Cahaya</button>
+        <button data-t="labels" aria-pressed="false">Tampilkan Label</button>
+        <button data-t="auto" aria-pressed="false">Putar Otomatis</button>
+      </div>
+    </div>
+    <div class="card">
+      <h4>λ Pengukuran = <span id="lv"></span> nm</h4>
+      <input type="range" id="lam" min="190" max="1100" step="1">
+      <div class="hint" id="lamp" style="font-weight: 600; color: #d97706;"></div>
+    </div>
+    <div class="card" style="flex-grow: 1;">
+      <h4 id="ti">Informasi Komponen</h4>
+      <div class="hint" id="info"><i>(Silakan klik salah satu komponen pada kanvas 3D di samping untuk melihat penjelasan fungsinya di sini.)</i></div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="c" aria-label="Model 3D spektrofotometer UV-1700"></canvas>
+    <div class="tools">
+      <button data-z="0.85" title="Perbesar Layar">➕</button>
+      <button data-z="1.18" title="Perkecil Layar">➖</button>
+      <button id="rs" title="Kembali ke tampilan awal">🔄</button>
+    </div>
+    <div class="views">
+      <button data-v="iso" class="on">Isometrik</button>
+      <button data-v="depan">Depan</button>
+      <button data-v="samping">Samping</button>
+      <button data-v="atas">Atas</button>
+      <button data-v="kompartemen">Ruang Sampel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function (root) {
+  'use strict';
+  const SL = root.SL || (root.SL = {});
+  const D2R = Math.PI / 180;
+
+  function lamColor(l) {
+    if (l < 380) return '#a99cf0'; if (l > 780) return '#b0302a';
+    let r = 0, g = 0, b = 0;
+    if (l < 440) { r = -(l - 440) / 60; b = 1; } else if (l < 490) { g = (l - 440) / 50; b = 1; }
+    else if (l < 510) { g = 1; b = -(l - 510) / 20; } else if (l < 580) { r = (l - 510) / 70; g = 1; }
+    else if (l < 645) { r = 1; g = -(l - 645) / 65; } else r = 1;
+    const f = l < 420 ? 0.45 + 0.55 * (l - 380) / 40 : l > 700 ? 0.45 + 0.55 * (780 - l) / 80 : 1;
+    const c = v => Math.round(255 * Math.pow(v * f, 0.8)).toString(16).padStart(2, '0');
+    return '#' + c(r) + c(g) + c(b);
+  }
+  function hex(c) { c = c.replace('#', ''); if (c.length === 3) c = c.split('').map(x => x + x).join(''); const n = parseInt(c, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function shade(col, k, emi) { const [r, g, b] = hex(col); const f = v => Math.max(0, Math.min(255, Math.round(v * k + (emi || 0) * 255))); return 'rgb(' + f(r) + ',' + f(g) + ',' + f(b) + ')'; }
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  function rotX(p, piv, ang) { const s = Math.sin(ang), c = Math.cos(ang); const y = p[1] - piv[1], z = p[2] - piv[2]; return [p[0], piv[1] + y * c - z * s, piv[2] + y * s + z * c]; }
+  function rotY(p, piv, ang) { const s = Math.sin(ang), c = Math.cos(ang); const x = p[0] - piv[0], z = p[2] - piv[2]; return [piv[0] + x * c + z * s, p[1], piv[2] - x * s + z * c]; }
+
+  /* Informasi komponen (Telah diubah) */
+  const INFO = {
+    base: ['Rangka Utama', 'Basis instrumen untuk menstabilkan sistem optik dan menjaga keselarasan jalur cahaya dari gangguan getaran.'],
+    body: ['Casing Eksterior', 'Pelindung utama optik dan elektronik dari debu serta mencegah masuknya stray light (cahaya nyasar).'],
+    cover: ['Penutup Atas', 'Panel atas yang melindungi keseluruhan interior. Membuka panel ini akan memperlihatkan sirkuit dan bangku optik.'],
+    lid: ['Penutup Kompartemen Sampel', 'Wajib ditutup saat pembacaan absorbansi agar cahaya lampu ruangan tidak ikut terdeteksi oleh fotodioda.'],
+    compartment: ['Ruang Sampel', 'Area kompartemen ganda (double-beam) yang menampung dudukan kuvet untuk sampel dan blanko sekaligus.'],
+    holderR: ['Holder Kuvet (Referensi)', 'Dudukan di jalur belakang tempat meletakkan kuvet berisi blanko atau pelarut.'],
+    holderS: ['Holder Kuvet (Sampel)', 'Dudukan di jalur depan tempat kuvet sampel. Tanda panah menunjukkan arah cahaya masuk.'],
+    cuvR: ['Kuvet Blanko', 'Wadah referensi yang meneruskan intensitas awal cahaya (I0).'],
+    cuvS: ['Kuvet Sampel', 'Wadah berisi larutan analit yang diukur transmitansinya (I).'],
+    d2: ['Lampu Deuterium (D2)', 'Sumber eksitasi spektrum kontinyu untuk pengukuran rentang UV (190 - 340 nm).'],
+    wi: ['Lampu Halogen (WI)', 'Lampu Wolfram/Tungsten yang menghasilkan cahaya tampak hingga inframerah dekat (340 - 1100 nm).'],
+    lamphouse: ['Rumah Lampu (Source)', 'Kompartemen khusus bersuhu tinggi yang menampung sumber radiasi elektromagnetik.'],
+    mirror: ['Cermin Pemilih Sumber', 'Motor stepper memutar cermin ini secara otomatis saat melewati panjang gelombang pergantian (340.8 nm).'],
+    slit1: ['Celah Masuk (Entrance Slit)', 'Celah sempit yang menentukan jumlah dan kualitas berkas cahaya menuju monokromator.'],
+    mono: ['Monokromator', 'Ruangan kedap tempat dispersi optik terjadi untuk menyeleksi warna cahaya tunggal.'],
+    grating: ['Kisi Difraksi (Grating)', 'Memecah cahaya putih polikromatis menjadi komponen spektrum monokromatis.'],
+    slit2: ['Celah Keluar (Exit Slit)', 'Menyeleksi bandwidth spesifik dari cahaya yang didispersikan kisi difraksi.'],
+    split: ['Beam Splitter', 'Cermin semi-transparan yang membagi intensitas berkas secara seimbang ke jalur referensi dan jalur sampel.'],
+    mirror2: ['Cermin Pengarah (Beam Director)', 'Membelokkan rute cahaya 90 derajat agar bisa menembus kuvet dalam kompartemen.'],
+    detR: ['Detektor Silikon (Referensi)', 'Fotodioda yang berfungsi mengubah intensitas cahaya blanko menjadi sinyal listrik.'],
+    detS: ['Detektor Silikon (Sampel)', 'Fotodioda pembaca sinar sampel untuk dibandingkan dengan nilai blanko. A = -log(I/I0).'],
+    pcb: ['Motherboard / Sirkuit Elektronik', 'Papan sirkuit biru berisi penguat sinyal, konverter Analog-ke-Digital (ADC), dan mikroprosesor alat.'],
+    lcd: ['Layar Tampilan LCD', 'Menampilkan antarmuka data spektra, nilai absorbansi real-time, dan status nyala lampu.'],
+    keypad: ['Keypad Operasional', 'Papan navigasi membran untuk menggunakan instrumen tanpa perangkat lunak UVProbe PC.'],
+    vent: ['Kisi Ventilasi Udara', 'Jalur masuk keluarnya aliran udara pendingin untuk modul daya dan lampu radiasi.'],
+    card: ['Slot IC Memory', 'Port untuk menyisipkan kartu memori eksternal penyimpan data analisis.'],
+    fan: ['Kipas Pendingin', 'Mencegah kerusakan akibat panas (overheat) pada ruang lampu tertutup.'],
+    plate: ['Plat Nama Produk', 'Menampilkan informasi tipe instrumen UV-1700 Pharmaspec.']
+  };
+
+  const COMPART = new Set(['compartment', 'holderR', 'holderS', 'cuvR', 'cuvS']);
+  class Model3D {
+    constructor(canvas, opt) {
+      this.cv = canvas; this.ctx = canvas.getContext('2d'); this.opt = opt || {};
+      this.yaw = -40; this.pitch = 30; this.dist = 85; this.target = [0, 9, 0];
+      this.lid = 0; this.lidT = 0; this.expl = 0; this.explT = 0; this.xray = 0; this.xrayT = 0;
+      this.beam = true; this.labels = false; this.auto = false; this.sel = null;
+      this.lam = 260; this.lampSwitch = 340.8; this.abs = 0; this.status = 'READY'; this.solColor = '#34d399';
+      this._build(); this._bind(); this._loop = this._loop.bind(this);
+      this._ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => this.draw()) : null;
+      if (this._ro) this._ro.observe(canvas.parentElement || canvas);
+      this.draw();
+    }
+    _build() {
+      const P = this.parts = [];
+      const box = (id, grp, x0, x1, y0, y1, z0, z1, col, o) => {
+        o = o || {};
+        const faces = [
+          ['f', [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]],
+          ['b', [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]]],
+          ['r', [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]]],
+          ['l', [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]]],
+          ['t', [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]]],
+          ['u', [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]]]
+        ];
+        const cell = o.cell || 4.5;
+        for (const [k, q] of faces) {
+          if (o.skip && o.skip.includes(k)) continue;
+          const fc = (o.faceCol && o.faceCol[k]) || col;
+          const lu = Math.hypot(...sub(q[1], q[0])), lv = Math.hypot(...sub(q[3], q[0]));
+          const isText = o.text && k === o.text.face;
+          const nu = isText ? 1 : Math.max(1, Math.ceil(lu / cell)), nv = isText ? 1 : Math.max(1, Math.ceil(lv / cell));
+          for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+            const L = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+            const bl = (u, v) => L(L(q[0], q[1], u), L(q[3], q[2], u), v);
+            P.push({ id, grp, col: fc, alpha: o.alpha == null ? 1 : o.alpha, emi: o.emi || 0, bias: o.bias || 0, tf: o.tf || null, key: k,
+              v: [bl(i / nu, j / nv), bl((i + 1) / nu, j / nv), bl((i + 1) / nu, (j + 1) / nv), bl(i / nu, (j + 1) / nv)],
+              text: (o.text && k === o.text.face && nu === 1 && nv === 1) ? o.text : null, dyn: o.dyn || null });
+          }
+        }
+      };
+      this.box = box;
+      // Tema Pharmaspec: Slate dan Biru
+      const SLATE1 = '#e2e8f0', SLATE2 = '#cbd5e1', GREY = '#94a3b8', DARK = '#0f172a', CREAM = '#f1f5f9';
+      box('base', 'body', -24, 24, 0, 3, -24.5, 24.5, GREY, { cell: 6 });
+      [[-20, 20], [20, 20], [-20, -20], [20, -20]].forEach(([x, z]) => box('base', 'body', x - 1.6, x + 1.6, -1.4, 0, z - 1.6, z + 1.6, '#334155', { skip: ['u'] }));
+      
+      const wallO = { cell: 3 };
+      box('body', 'walls', -24, 24, 3, 13.5, 23.9, 24.5, SLATE1, wallO);           
+      box('body', 'walls', -24, 24, 3, 13.5, -24.5, -23.9, SLATE1, wallO);         
+      box('body', 'walls', -24, -23.4, 3, 13.5, -23.9, 23.9, SLATE1, wallO);       
+      box('body', 'walls', 23.4, 24, 3, 13.5, -23.9, 23.9, SLATE1, wallO);         
+      
+      box('compartment', 'walls', -16, -1, 4, 12.5, 24.5, 24.8, '#94a3b8', { bias: -4, skip: ['b'], cell: 99 });
+      box('plate', 'walls', 9, 19, 7, 10, 24.5, 24.7, '#f8fafc', { bias: -4.5, skip: ['b'], cell: 99, text: { face: 'f', w: 100, h: 30, lines: [['UV-1700', 15, 12, 'center'], ['PHARMASPEC', 15, 24, 'center']], color: '#0f172a', font: '600 12px "Segoe UI", Arial' } });
+      
+      for (let i = 0; i < 7; i++) box('vent', 'walls', 24, 24.25, 6 + i * 1, 6.5 + i * 1, -20, -11, '#64748b', { bias: -4, cell: 99 });
+      box('card', 'walls', 24, 24.2, 11, 11.8, 2, 10, '#1e293b', { bias: -4, cell: 99 });
+      
+      // PCB menjadi biru tua
+      box('pcb', 'inner', -22.8, -12, 3, 3.6, -22, -6, '#1e40af');
+      [[-20, -19], [-17, -15], [-14, -10]].forEach(([a, b], k) => box('pcb', 'inner', a, b, 3.6, 4.4, -20 + k * 4, -18 + k * 4, '#0f172a'));
+      box('fan', 'inner', -22.6, -15, 3, 9, -23.6, -21.8, '#334155');
+      
+      box('lamphouse', 'inner', 14, 23.2, 3, 4, -23.4, -9, '#334155');
+      box('lamphouse', 'inner', 21.6, 23.2, 4, 12, -23.4, -9, '#475569', { alpha: 0.9 });
+      box('d2', 'inner', 18, 20.2, 4, 11.5, -21, -18.6, '#d9d4ff', { dyn: 'd2' });
+      box('wi', 'inner', 18, 20.2, 4, 10.5, -14.2, -11.8, '#fff1b8', { dyn: 'wi' });
+      box('mirror', 'inner', 15, 15.6, 7.5, 11.5, -18, -14, '#94a3b8', { dyn: 'mirror' });
+      box('slit1', 'inner', 11, 11.4, 6, 13, -18.5, -16.4, DARK); box('slit1', 'inner', 11, 11.4, 6, 13, -15.6, -13.5, DARK);
+      
+      box('mono', 'inner', -2, 10.5, 3, 4, -23.2, -9, '#1e293b');
+      box('mono', 'inner', -2, 10.5, 4, 12.5, -23.2, -22.7, '#334155', { alpha: 0.55 });
+      box('mono', 'inner', -2, -1.5, 4, 12.5, -22.7, -9, '#334155', { alpha: 0.55 });
+      box('grating', 'inner', 1.5, 5.5, 5.5, 12.5, -21.8, -20.6, '#06b6d4', { faceCol: { f: '#67e8f9' } });
+      box('slit2', 'inner', 1.5, 2.6, 6, 13, -9.4, -9, DARK); box('slit2', 'inner', 3.4, 4.5, 6, 13, -9.4, -9, DARK);
+      box('split', 'inner', 2.4, 3.6, 6.5, 12, 1.4, 4.6, '#7fe6f7', { alpha: 0.7, tf: [['y', [3, 0, 3], 45]] });
+      box('mirror2', 'inner', 2.4, 3.6, 6.5, 12, 11.4, 14.6, '#cbd5e1', { tf: [['y', [3, 0, 13], -45]] });
+      
+      box('compartment', 'inner', -15, -2, 3, 6, -2, 20, '#1e293b', { cell: 4 });
+      box('compartment', 'inner', -15, -14.5, 6, 13.5, -2, 20, '#334155', { alpha: 0.85 });
+      box('compartment', 'inner', -2.5, -2, 6, 13.5, -2, 20, '#334155', { alpha: 0.85 });
+      box('compartment', 'inner', -14.5, -2.5, 6, 13.5, -2, -1.5, '#334155');
+      box('compartment', 'inner', -14.5, -2.5, 6, 13.5, 19.5, 20, '#334155');
+      
+      const holder = (id, z) => {
+        box(id, 'inner', -10.6, -6.4, 6, 12.5, z - 2.1, z - 1.6, DARK); box(id, 'inner', -10.6, -6.4, 6, 12.5, z + 1.6, z + 2.1, DARK);
+        box(id, 'inner', -10.6, -10.1, 6, 12.5, z - 1.6, z + 1.6, DARK, { alpha: 0.9 });
+        box(id, 'inner', -11.5, -5.5, 6, 6.6, z - 2.6, z + 2.6, '#0f172a');
+      };
+      holder('holderR', 3); holder('holderS', 13);
+      box('cuvR', 'inner', -9.8, -7.2, 6.6, 14.2, 1.7, 4.3, '#d9f3f7', { alpha: 0.35, bias: -0.4 });
+      box('cuvS', 'inner', -9.8, -7.2, 6.6, 14.2, 11.7, 14.3, '#34d399', { alpha: 0.55, bias: -0.4, dyn: 'cuvS' });
+      box('detR', 'inner', -21.6, -19.6, 8, 11.5, 1.6, 4.4, '#0f172a'); box('detS', 'inner', -21.6, -19.6, 8, 11.5, 11.6, 14.4, '#0f172a');
+      
+      const covO = { cell: 4.5 };
+      box('cover', 'cover', -24, -15, 13.5, 15, -24.5, 24.5, SLATE2, covO);
+      box('cover', 'cover', -2, 24, 13.5, 15, -24.5, 24.5, SLATE2, covO);
+      box('cover', 'cover', -15, -2, 13.5, 15, -24.5, -2, SLATE2, covO);
+      box('cover', 'cover', -15, -2, 13.5, 15, 20, 24.5, SLATE2, covO);
+      for (let i = 0; i < 12; i++) box('vent', 'cover', 8 + i * 1.2, 8.6 + i * 1.2, 15, 15.25, -23.5, -15.5, '#64748b');
+      
+      box('lid', 'lid', -15.2, -1.8, 15, 16.6, -2.2, 20.2, '#94a3b8', { cell: 4, faceCol: { u: '#0f172a' } });
+      
+      box('keypad', 'cover', 2, 21, 15, 16.2, 13, 23.5, CREAM, { bias: -0.6 });
+      const keys = [];
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) keys.push([3.6 + c * 3.4, 14.4 + r * 2.2]);
+      keys.forEach(([x, z], k) => box('keypad', 'cover', x, x + 2, 16.2, 16.6, z, z + 1.3, k % 5 === 4 ? '#38bdf8' : '#cbd5e1', { bias: -0.8 }));
+      
+      box('lcd', 'cover', 9, 14, 15, 17.5, 7.5, 10, '#cbd5e1', { bias: -0.6 });
+      const tilt = [['x', [11.5, 16.5, 9], -18]];
+      box('lcd', 'cover', 3.5, 19.5, 16.5, 28.5, 8.2, 10.2, '#e2e8f0', { tf: tilt, bias: -0.7, cell: 99 });
+      box('lcd', 'cover', 5, 18, 18, 27, 10.2, 10.35, '#cffafe', { tf: tilt, bias: -4, emi: 0.06, dyn: 'lcd', text: { face: 'f', w: 130, h: 90, lines: [] } });
+    }
+    setLam(l) { this.lam = l; this.draw(); }
+    toggle(what, on) {
+      if (what === 'lid') this.lidT = on == null ? (this.lidT ? 0 : 1) : (on ? 1 : 0);
+      if (what === 'expl') this.explT = on == null ? (this.explT ? 0 : 1) : (on ? 1 : 0);
+      if (what === 'xray') this.xrayT = on == null ? (this.xrayT ? 0 : 1) : (on ? 1 : 0);
+      if (what === 'beam') this.beam = on == null ? !this.beam : !!on;
+      if (what === 'labels') this.labels = on == null ? !this.labels : !!on;
+      if (what === 'auto') this.auto = on == null ? !this.auto : !!on;
+      this._kick(); return this.state();
+    }
+    state() { return { lid: this.lidT, expl: this.explT, xray: this.xrayT, beam: this.beam, labels: this.labels, auto: this.auto }; }
+    view(name) {
+      const V = { depan: [0, 8], samping: [90, 10], atas: [0, 88], belakang: [180, 14], iso: [-40, 30], kompartemen: [-15, 50] };
+      const v = V[name] || V.iso; this._anim = { from: [this.yaw, this.pitch], to: v, t: 0 }; this._kick();
+    }
+    zoom(f) { this.dist = Math.max(55, Math.min(260, this.dist * f)); this.draw(); }
+    reset() { this.dist = 85; this.view('iso'); this.sel = null; if (this.opt.onPick) this.opt.onPick(null); }
+    _kick() { if (!this._running) { this._running = true; this._last = performance.now(); requestAnimationFrame(this._loop); } }
+    _loop(now) {
+      const dt = Math.min(0.05, (now - this._last) / 1000); this._last = now;
+      const ease = (cur, tgt, sp) => { const d = tgt - cur; return Math.abs(d) < 0.002 ? tgt : cur + d * Math.min(1, dt * sp); };
+      this.lid = ease(this.lid, this.lidT, 5); this.expl = ease(this.expl, this.explT, 4); this.xray = ease(this.xray, this.xrayT, 5);
+      if (this._anim) {
+        const a = this._anim; a.t = Math.min(1, a.t + dt * 2.2); const k = a.t < 0.5 ? 2 * a.t * a.t : 1 - Math.pow(-2 * a.t + 2, 2) / 2;
+        let dy = a.to[0] - a.from[0]; while (dy > 180) dy -= 360; while (dy < -180) dy += 360;
+        this.yaw = a.from[0] + dy * k; this.pitch = a.from[1] + (a.to[1] - a.from[1]) * k; if (a.t >= 1) this._anim = null;
+      }
+      if (this.auto && !this._drag) this.yaw += dt * 18;
+      this.draw();
+      const busy = this.lid !== this.lidT || this.expl !== this.explT || this.xray !== this.xrayT || this._anim || (this.auto && !this._drag);
+      if (busy) requestAnimationFrame(this._loop); else this._running = false;
+    }
+    _xf(p, part) {
+      let q = p;
+      if (part.tf) for (const [ax, piv, deg] of part.tf) q = ax === 'x' ? rotX(q, piv, deg * D2R) : rotY(q, piv, deg * D2R);
+      if (part.grp === 'lid') { q = rotX(q, [0, 15, -2.2], -102 * this.lid * D2R); q = [q[0], q[1] + 16 * this.expl, q[2]]; }
+      if (part.grp === 'cover') q = [q[0], q[1] + 16 * this.expl, q[2]];
+      return q;
+    }
+    _cam(p) {
+      const t = this.target; let x = p[0] - t[0], y = p[1] - t[1] - 7 * this.expl, z = p[2] - t[2];
+      const cy = Math.cos(-this.yaw * D2R), sy = Math.sin(-this.yaw * D2R);
+      const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+      const cp = Math.cos(this.pitch * D2R), sp = Math.sin(this.pitch * D2R);
+      const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+      return [x1, y2, z2];
+    }
+    _proj(c) { const zc = this.dist * (1 + 0.28 * this.expl) - c[2]; const f = this._f; return [this._cx + f * c[0] / zc, this._cy - f * c[1] / zc, zc]; }
+    draw() {
+      const cv = this.cv, ctx = this.ctx;
+      const rect = cv.getBoundingClientRect(); const W = Math.max(240, rect.width || cv.width), H = Math.max(200, rect.height || cv.height);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this._cx = W / 2; this._cy = H / 2 + 10; this._f = Math.min(W, H * 1.45) * 1.0;
+      
+      const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#f1f5f9'); g.addColorStop(1, '#e2e8f0');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      
+      const sh = [[-25, 0, -26.5], [25, 0, -26.5], [25, 0, 26.5], [-25, 0, 26.5]].map(p => this._proj(this._cam([p[0] + 1.5, -1.4, p[2] + 1.5])));
+      ctx.fillStyle = 'rgba(15,23,42,0.1)'; ctx.beginPath(); sh.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill();
+      const light = norm([0.45, 0.85, 0.55]);
+      const camPos = [0, 0, this.dist];
+      const lampUV = this.lam < this.lampSwitch;
+      const items = [];
+      const coverA = 1 - 0.82 * this.xray, wallA = 1 - 0.75 * this.xray;
+      const closed = this.xray < 0.04 && this.expl < 0.04;
+      
+      for (const part of this.parts) {
+        const wv = part.v.map(p => this._xf(p, part));
+        const cvs = wv.map(p => this._cam(p));
+        const n = norm(cross(sub(cvs[1], cvs[0]), sub(cvs[3], cvs[0])));
+        const cen = [(cvs[0][0] + cvs[2][0]) / 2, (cvs[0][1] + cvs[2][1]) / 2, (cvs[0][2] + cvs[2][2]) / 2];
+        let alpha = part.alpha;
+        if (part.grp === 'cover' || part.grp === 'lid') alpha *= coverA;
+        if (part.grp === 'walls' || part.id === 'body') alpha *= wallA;
+        if (alpha < 0.02) continue;
+        if (part.grp === 'inner' && closed && !(this.lid > 0.05 && COMPART.has(part.id))) continue;
+        if (part.grp === 'inner') alpha = Math.min(alpha, 1);
+        const facing = dot(n, sub(camPos, cen)) > 0;
+        if (!facing && alpha > 0.97) continue;
+        const wn = norm(cross(sub(wv[1], wv[0]), sub(wv[3], wv[0])));
+        let k = 0.5 + 0.55 * Math.max(0, dot(wn, light));
+        let col = part.col, emi = part.emi;
+        if (part.dyn === 'd2') { emi = lampUV ? 0.45 : 0.0; col = lampUV ? '#e4dcff' : '#9a96b5'; }
+        if (part.dyn === 'wi') { emi = !lampUV ? 0.45 : 0.0; col = !lampUV ? '#ffe7a0' : '#a89c74'; }
+        if (part.dyn === 'cuvS') col = this.solColor;
+        if (this.sel && part.id === this.sel) { emi += 0.25; }
+        items.push({ part, pts: cvs.map(c => this._proj(c)), depth: this.dist - cen[2] + part.bias + (part.grp === 'inner' ? 0.35 : 0) + (facing ? 0 : 0.02), fill: shade(col, k, emi), alpha, facing });
+      }
+      
+      if (this.beam) {
+        const y = 9.5, by = this.lid > 0.5 || this.xray > 0.5 || this.expl > 0.5;
+        const src = lampUV ? [19.1, y, -19.8] : [19.1, y, -13];
+        const path = [[src, [15.3, y, -16]], [[15.3, y, -16], [11.2, y, -15]], [[11.2, y, -15], [3.5, y, -21]], [[3.5, y, -21], [3, y, -9.2]], [[3, y, -9.2], [3, y, 3]], [[3, y, 3], [3, y, 13]], [[3, y, 3], [-8.5, y, 3]], [[-8.5, y, 3], [-19.6, y, 3]], [[3, y, 13], [-8.5, y, 13]], [[-8.5, y, 13], [-19.6, y, 13]]];
+        const segs = [];
+        path.forEach(([a, b], si) => { for (let k = 0; k < 4; k++) { const t0 = k / 4, t1 = (k + 1) / 4; segs.push([[a[0] + (b[0] - a[0]) * t0, a[1], a[2] + (b[2] - a[2]) * t0], [a[0] + (b[0] - a[0]) * t1, a[1], a[2] + (b[2] - a[2]) * t1], si]); } });
+        const poly = si => si <= 2; 
+        for (const [a, b, si] of segs) {
+          const ca = this._cam(a), cb = this._cam(b); const pa = this._proj(ca), pb = this._proj(cb);
+          const atten = (si === 9) ? Math.max(0.12, Math.pow(10, -Math.max(0, Math.min(3, this.abs)))) : 1;
+          if (closed && !(this.lid > 0.05 && (si >= 6))) continue;
+          items.push({ beam: true, pa, pb, depth: this.dist - (ca[2] + cb[2]) / 2 - 0.3, color: poly(si) ? '#fffbe8' : lamColor(this.lam), uv: !poly(si) && this.lam < 380, atten, show: by });
+        }
+      }
+      
+      items.sort((a, b) => b.depth - a.depth);
+      this._drawn = [];
+      ctx.lineJoin = 'round';
+      
+      for (const it of items) {
+        if (it.beam) {
+          ctx.save(); ctx.globalAlpha = 0.3 * it.atten * (it.show ? 1 : 0.55); ctx.strokeStyle = it.color; ctx.lineWidth = 7; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(it.pa[0], it.pa[1]); ctx.lineTo(it.pb[0], it.pb[1]); ctx.stroke();
+          ctx.globalAlpha = 0.95 * it.atten; ctx.lineWidth = 2.2; if (it.uv) ctx.setLineDash([5, 4]);
+          ctx.beginPath(); ctx.moveTo(it.pa[0], it.pa[1]); ctx.lineTo(it.pb[0], it.pb[1]); ctx.stroke(); ctx.restore();
+          continue;
+        }
+        const p = it.pts; ctx.globalAlpha = it.alpha;
+        ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < 4; i++) ctx.lineTo(p[i][0], p[i][1]); ctx.closePath();
+        ctx.fillStyle = it.fill; ctx.fill();
+        if (it.alpha > 0.97) { ctx.strokeStyle = it.fill; ctx.lineWidth = 1.1; ctx.stroke(); } 
+        if (this.sel && it.part.id === this.sel) { ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.8; ctx.stroke(); }
+        ctx.globalAlpha = 1;
+        if (it.part.text && it.facing) this._text(it.part, p);
+        if (it.facing && it.alpha > 0.3) this._drawn.push({ id: it.part.id, p });
+      }
+      if (this.labels) this._labels(ctx);
+    }
+    _text(part, p) {
+      const ctx = this.ctx, t = part.text;
+      const TL = p[3], TR = p[2], BL = p[0];
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0); const dpr = this.cv.width / Math.max(1, this.cv.getBoundingClientRect().width || this.cv.width);
+      ctx.setTransform((TR[0] - TL[0]) / t.w * dpr, (TR[1] - TL[1]) / t.w * dpr, (BL[0] - TL[0]) / t.h * dpr, (BL[1] - TL[1]) / t.h * dpr, TL[0] * dpr, TL[1] * dpr);
+      if (part.dyn === 'lcd') {
+        ctx.fillStyle = '#0f172a'; ctx.font = '600 16px "Segoe UI", monospace'; ctx.textAlign = 'right';
+        ctx.fillText(this.lam.toFixed(1) + 'nm', 124, 25);
+        ctx.fillText((this.status === 'OFF' ? '-----' : this.abs.toFixed(3)) + ' ABS', 124, 52);
+        ctx.font = '600 11px "Segoe UI", monospace'; ctx.textAlign = 'left'; ctx.fillText(this.lam < this.lampSwitch ? 'D2' : 'WI', 38, 75);
+        ctx.textAlign = 'right'; ctx.fillStyle = '#0284c7'; ctx.fillText(this.status, 124, 75);
+      } else {
+        ctx.fillStyle = t.color || '#222'; ctx.font = t.font || '12px Arial';
+        for (const [s, x, y, al] of t.lines) { ctx.textAlign = al || 'left'; ctx.fillText(s, x === 'c' ? t.w / 2 : (al === 'center' ? t.w / 2 : x), y); }
+      }
+      ctx.restore();
+    }
+    _labels(ctx) {
+      const A = [['d2', [19, 12, -20]], ['wi', [19, 11, -13]], ['mirror', [15.3, 12, -16]], ['slit1', [11.2, 13.5, -15]], ['grating', [3.5, 13, -21]], ['slit2', [3, 13.5, -9.2]], ['split', [3, 12.5, 3]], ['holderR', [-8.5, 13, 3]], ['holderS', [-8.5, 13, 13]], ['detS', [-20.6, 12, 13]], ['detR', [-20.6, 12, 3]], ['pcb', [-17, 5, -14]], ['lcd', [11.5, 29, 6]], ['keypad', [12, 17, 22]], ['lid', [-8.5, 17, 9]]];
+      ctx.font = '600 11px "Segoe UI", Arial';
+      const placed = [];
+      const L = A.map(([id, p0]) => { const part = this.parts.find(q => q.id === id); const p = part ? this._xf(p0, part) : p0; return { id, s: this._proj(this._cam(p)) }; }).sort((a, b) => a.s[1] - b.s[1]);
+      for (const { id, s } of L) {
+        const name = INFO[id][0].replace(/ \(.*\)/, '');
+        const w = ctx.measureText(name).width + 12; const x = s[0]; let y = s[1] - 16;
+        for (let k = 0; k < 8 && placed.some(r => Math.abs(r.x - x) < (r.w + w) / 2 + 2 && Math.abs(r.y - y) < 17); k++) y -= 17;
+        placed.push({ x, y, w });
+        ctx.strokeStyle = 'rgba(15,23,42,.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(x, y + 4); ctx.stroke();
+        ctx.fillStyle = id === this.sel ? '#0284c7' : 'rgba(255,255,255,.95)';
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - w / 2, y - 11, w, 16, 4) : ctx.rect(x - w / 2, y - 11, w, 16); ctx.fill();
+        ctx.fillStyle = id === this.sel ? '#fff' : '#0f172a'; ctx.textAlign = 'center'; ctx.fillText(name, x, y + 2);
+        ctx.fillStyle = '#0ea5e9'; ctx.beginPath(); ctx.arc(s[0], s[1], 2.5, 0, 7); ctx.fill();
+      }
+    }
+    pickAt(x, y) {
+      const inPoly = (p, px, py) => { let c = false; for (let i = 0, j = 3; i < 4; j = i++) { if (((p[i][1] > py) !== (p[j][1] > py)) && (px < (p[j][0] - p[i][0]) * (py - p[i][1]) / (p[j][1] - p[i][1]) + p[i][0])) c = !c; } return c; };
+      for (let i = this._drawn.length - 1; i >= 0; i--) if (inPoly(this._drawn[i].p, x, y)) return this._drawn[i].id;
+      return null;
+    }
+    _bind() {
+      const cv = this.cv; cv.style.touchAction = 'none';
+      let pts = new Map(), start = null, pinch = null;
+      cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); start = { x: e.clientX, y: e.clientY, yaw: this.yaw, pitch: this.pitch, moved: false }; this._drag = true; if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), dist: this.dist }; } });
+      cv.addEventListener('pointermove', e => {
+        if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, [e.clientX, e.clientY]);
+        if (pts.size === 2 && pinch) { const [a, b] = [...pts.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); this.dist = Math.max(55, Math.min(260, pinch.dist * pinch.d / Math.max(10, d))); start.moved = true; this.draw(); return; }
+        if (!start) return; const dx = e.clientX - start.x, dy = e.clientY - start.y;
+        if (Math.abs(dx) + Math.abs(dy) > 4) start.moved = true;
+        this.yaw = start.yaw - dx * 0.45; this.pitch = Math.max(-10, Math.min(89, start.pitch + dy * 0.35)); this._anim = null; this.draw();
+      });
+      const up = e => {
+        if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
+        if (pts.size === 0) {
+          this._drag = false;
+          if (start && !start.moved) { const r = cv.getBoundingClientRect(); const id = this.pickAt(e.clientX - r.left, e.clientY - r.top); this.sel = id; this.draw(); if (this.opt.onPick) this.opt.onPick(id ? { id, title: INFO[id][0], text: INFO[id][1] } : null); }
+          start = null; if (this.auto) this._kick();
+        }
+      };
+      cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+      cv.addEventListener('wheel', e => { e.preventDefault(); this.zoom(e.deltaY > 0 ? 1.08 : 1 / 1.08); }, { passive: false });
+    }
+  }
+  SL.Model3D = Model3D;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+// Inisialisasi Aplikasi
+(function(){
+  var SL = window.SL, $ = function(s){return document.querySelector(s)};
+  var m = new SL.Model3D($('#c'), { 
+    onPick: function(i){ 
+      $('#ti').textContent = i ? i.title : 'Informasi Komponen'; 
+      $('#info').innerHTML = i ? `<b>Fungsi:</b> ${i.text}` : '<i>(Silakan klik salah satu komponen pada kanvas 3D di samping untuk melihat penjelasan fungsinya di sini.)</i>'; 
+    } 
+  });
+  
+  function sync(){ 
+    var st = m.state(); 
+    document.querySelectorAll('[data-t]').forEach(function(b){ 
+      b.setAttribute('aria-pressed', String(!!st[b.dataset.t])); 
+    }); 
+  }
+  
+  function setLam(l){ 
+    m.setLam(l); 
+    $('#lv').textContent = l; 
+    $('#lam').value = l; 
+    $('#lamp').textContent = (l < m.lampSwitch ? 'MENGGUNAKAN LAMPU D2 (UV)' : 'MENGGUNAKAN LAMPU WI (VISIBLE)'); 
+  }
+  
+  // Pengaturan awal default (Tembus pandang aktif dan sinar menyala)
+  m.toggle('beam', true);
+  m.toggle('xray', true);
+  setLam(260); // Default ke UV
+  sync();
+  
+  document.addEventListener('click', function(e){ 
+    var b = e.target.closest('button'); 
+    if(!b) return;
+    if (b.dataset.t){ m.toggle(b.dataset.t); sync(); }
+    if (b.dataset.v){ m.view(b.dataset.v); document.querySelectorAll('.views button').forEach(function(x){ x.classList.toggle('on', x===b); }); }
+    if (b.dataset.z) m.zoom(+b.dataset.z); 
+    if (b.id==='rs') m.reset(); 
+  });
+  
+  $('#lam').addEventListener('input', function(e){ 
+    setLam(+e.target.value); 
+  });
+})();
+</script>
+</body>
+</html>
