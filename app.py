@@ -195,7 +195,7 @@ with tab2:
         with st.container(border=True):
             st.subheader("Input Data Sampel")
             abs_1 = st.number_input("Absorbansi Sampel 1", value=0.100, format="%.4f")
-            abs_2 = st.number_input("Absorbansi Duplo", value=0.105, format="%.4f")
+            abs_2 = st.number_input("Absorbansi Sampel 2", value=0.105, format="%.4f")
             bobot_kg = st.number_input("Bobot Sampel (kg)", value=0.000400, format="%.6f")
             vol_L = st.number_input("Volume (L)", value=0.250, format="%.3f")
             st.session_state.abs_1, st.session_state.abs_2 = abs_1, abs_2
